@@ -3,12 +3,14 @@ module Metal
 using GPUArrays
 using Adapt
 using GPUCompiler
+using GPUToolbox: SimpleVersion, @sv_str
 using LLVM
 using LLVM.Interop
 import LLVMDowngrader_jll
 using Preferences: @load_preference, load_preference
 using ExprTools: splitdef, combinedef
 using ObjectiveC, .CoreFoundation, .Foundation, .Dispatch, .OS
+import ObjectiveC: is_macos, darwin_version, macos_version
 import KernelAbstractions
 
 include("version.jl")
@@ -27,12 +29,12 @@ include("device/utils.jl")
 include("device/pointer.jl")
 include("device/array.jl")
 include("device/runtime.jl")
+include("device/intrinsics/version.jl")
 include("device/intrinsics/arguments.jl")
 include("device/intrinsics/math.jl")
 include("device/intrinsics/synchronization.jl")
 include("device/intrinsics/memory.jl")
 include("device/intrinsics/simd.jl")
-include("device/intrinsics/version.jl")
 include("device/intrinsics/atomics.jl")
 include("device/quirks.jl")
 
@@ -50,6 +52,9 @@ include("compiler/reflection.jl")
 # libraries
 include("../lib/mps/MPS.jl")
 export MPS
+
+# LinearAlgebra
+include("linalg.jl")
 
 # array implementation
 include("utilities.jl")

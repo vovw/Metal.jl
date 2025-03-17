@@ -2,11 +2,26 @@
 
 using Base: FastMath
 using Base.Math: throw_complex_domainerror
+import Core: Float16, Float32
 
 # TODO:
 # - wrap all intrinsics from include/metal/metal_math
 # - add support for vector types
 # - consider emitting LLVM intrinsics and lowering those in the back-end
+
+### Constants
+# π and ℯ
+for T in (:Float16,:Float32), R in (RoundUp, RoundDown), irr in (π, ℯ)
+    @eval @device_override $T(::typeof($irr), ::typeof($R)) = $@eval($T($irr,$R))
+end
+
+### Common Intrinsics
+@device_function clamp_fast(x::Float32, minval::Float32, maxval::Float32) = ccall("extern air.fast_clamp.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, minval, maxval)
+@device_override Base.clamp(x::Float32, minval::Float32, maxval::Float32) = ccall("extern air.clamp.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, minval, maxval)
+@device_override Base.clamp(x::Float16, minval::Float16, maxval::Float16) = ccall("extern air.clamp.f16", llvmcall, Float16, (Float16, Float16, Float16), x, minval, maxval)
+
+@device_override Base.sign(x::Float32) = ccall("extern air.sign.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.sign(x::Float16) = ccall("extern air.sign.f16", llvmcall, Float16, (Float16,), x)
 
 ### Floating Point Intrinsics
 
@@ -17,13 +32,21 @@ using Base.Math: throw_complex_domainerror
 @device_override Base.abs(x::Float32) = ccall("extern air.fabs.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.abs(x::Float16) = ccall("extern air.fabs.f16", llvmcall, Float16, (Float16,), x)
 
-@device_override FastMath.min_fast(x::Float32) = ccall("extern air.fast_fmin.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.min(x::Float32) = ccall("extern air.fmin.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.min(x::Float16) = ccall("extern air.fmin.f16", llvmcall, Float16, (Float16,), x)
+@device_override FastMath.min_fast(x::Float32, y::Float32) = ccall("extern air.fast_fmin.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.min(x::Float32, y::Float32) = ccall("extern air.fmin.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.min(x::Float16, y::Float16) = ccall("extern air.fmin.f16", llvmcall, Float16, (Float16, Float16), x, y)
 
-@device_override FastMath.max_fast(x::Float32) = ccall("extern air.fast_fmax.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.max(x::Float32) = ccall("extern air.fmax.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.max(x::Float16) = ccall("extern air.fmax.f16", llvmcall, Float16, (Float16,), x)
+@device_override FastMath.min_fast(x::Float32, y::Float32, z::Float32) = ccall("extern air.fast_fmin3.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.min(x::Float32, y::Float32, z::Float32) = ccall("extern air.fmin3.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.min(x::Float16, y::Float16, z::Float16) = ccall("extern air.fmin3.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+@device_override FastMath.max_fast(x::Float32, y::Float32) = ccall("extern air.fast_fmax.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.max(x::Float32, y::Float32) = ccall("extern air.fmax.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.max(x::Float16, y::Float16) = ccall("extern air.fmax.f16", llvmcall, Float16, (Float16, Float16), x, y)
+
+@device_override FastMath.max_fast(x::Float32, y::Float32, z::Float32) = ccall("extern air.fast_fmax3.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.max(x::Float32, y::Float32, z::Float32) = ccall("extern air.fmax3.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.max(x::Float16, y::Float16, z::Float16) = ccall("extern air.fmax3.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 @device_override FastMath.acos_fast(x::Float32) = ccall("extern air.fast_acos.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.acos(x::Float32) = ccall("extern air.acos.f32", llvmcall, Cfloat, (Cfloat,), x)
@@ -44,6 +67,10 @@ using Base.Math: throw_complex_domainerror
 @device_override FastMath.atan_fast(x::Float32) = ccall("extern air.fast_atan.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.atan(x::Float32) = ccall("extern air.atan.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.atan(x::Float16) = ccall("extern air.atan.f16", llvmcall, Float16, (Float16,), x)
+
+@device_override FastMath.atan_fast(x::Float32, y::Float32) = ccall("extern air.fast_atan2.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.atan(x::Float32, y::Float32) = ccall("extern air.atan2.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.atan(x::Float16, y::Float16) = ccall("extern air.atan2.f16", llvmcall, Float16, (Float16, Float16), x, y)
 
 @device_override FastMath.atanh_fast(x::Float32) = ccall("extern air.fast_atanh.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.atanh(x::Float32) = ccall("extern air.atanh.f32", llvmcall, Cfloat, (Cfloat,), x)
@@ -210,6 +237,24 @@ end
 @device_override Base.:(^)(x::Float32, y::Float32) = ccall("extern air.pow.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.:(^)(x::Float16, y::Float16) = ccall("extern air.pow.f16", llvmcall, Float16, (Float16, Float16), x, y)
 
+# Avoid use of Float64 in `pow`
+@device_override @inline function Base.:(^)(x::Float32, y::Integer)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x * x
+    y == 3 && return x * x * x
+    x^Float32(y)
+end
+@device_override @inline function Base.:(^)(x::Float16, y::Integer)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x * x
+    y == 3 && return x * x * x
+    x^Float16(y)
+end
+
 @device_function powr_fast(x::Float32, y::Float32) = ccall("extern air.fast_powr.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_function powr(x::Float32, y::Float32) = ccall("extern air.powr.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_function powr(x::Float16, y::Float16) = ccall("extern air.powr.f16", llvmcall, Float16, (Float16, Float16), x, y)
@@ -232,17 +277,17 @@ end
 
 @device_override function FastMath.sincos_fast(x::Float32)
     c = Ref{Cfloat}()
-    s = ccall("extern air.fast_sincos.f32", llvmcall, Cfloat, (Cfloat, Ptr{Cfloat}), x, c)
+    s = @typed_ccall("air.fast_sincos.f32", llvmcall, Cfloat, (Cfloat, Ptr{Cfloat}), x, c)
     (s, c[])
 end
 @device_override function Base.sincos(x::Float32)
     c = Ref{Cfloat}()
-    s = ccall("extern air.sincos.f32", llvmcall, Cfloat, (Cfloat, Ptr{Cfloat}), x, c)
+    s = @typed_ccall("air.sincos.f32", llvmcall, Cfloat, (Cfloat, Ptr{Cfloat}), x, c)
     (s, c[])
 end
 @device_override function Base.sincos(x::Float16)
     c = Ref{Float16}()
-    s = ccall("extern air.sincos.f16", llvmcall, Float16, (Float16, Ptr{Float16}), x, c)
+    s = @typed_ccall("air.sincos.f16", llvmcall, Float16, (Float16, Ptr{Float16}), x, c)
     (s, c[])
 end
 
@@ -267,12 +312,27 @@ end
 @device_override Base.tanh(x::Float16) = ccall("extern air.tanh.f16", llvmcall, Float16, (Float16,), x)
 
 @device_function tanpi_fast(x::Float32) = ccall("extern air.fast_tanpi.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_function tanpi(x::Float32) = ccall("extern air.tanpi.f32", llvmcall, Cfloat, (Cfloat,), x)
-@device_function tanpi(x::Float16) = ccall("extern air.tanpi.f16", llvmcall, Float16, (Float16,), x)
+@device_override Base.tanpi(x::Float32) = ccall("extern air.tanpi.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.tanpi(x::Float16) = ccall("extern air.tanpi.f16", llvmcall, Float16, (Float16,), x)
 
 @device_function trunc_fast(x::Float32) = ccall("extern air.fast_trunc.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.trunc(x::Float32) = ccall("extern air.trunc.f32", llvmcall, Cfloat, (Cfloat,), x)
 @device_override Base.trunc(x::Float16) = ccall("extern air.trunc.f16", llvmcall, Float16, (Float16,), x)
+
+@device_function function nextafter(x::Float32, y::Float32)
+    if metal_version() >= sv"3.1" # macOS 14+
+        ccall("extern air.nextafter.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+    else
+        nextfloat(x, unsafe_trunc(Int32, sign(y - x)))
+    end
+end
+@device_function function nextafter(x::Float16, y::Float16)
+    if metal_version() >= sv"3.1" # macOS 14+
+        ccall("extern air.nextafter.f16", llvmcall, Float16, (Float16, Float16), x, y)
+    else
+        nextfloat(x, unsafe_trunc(Int16, sign(y - x)))
+    end
+end
 
 # hypot without use of double
 #
@@ -308,82 +368,92 @@ end
 @device_override Base.abs(x::Int8)    = ccall("extern air.abs.s.i8", llvmcall, Int8, (Int8,), x)
 @device_override Base.abs(x::UInt8)   = ccall("extern air.abs.u.i8", llvmcall, UInt8, (UInt8,), x)
 
-@device_override Base.min(x::Int64)   = ccall("extern air.min.s.i64", llvmcall, Int64, (Int64,), x)
-@device_override Base.min(x::UInt64)  = ccall("extern air.min.u.i64", llvmcall, UInt64, (UInt64,), x)
-@device_override Base.min(x::Int32)   = ccall("extern air.min.s.i32", llvmcall, Int32, (Int32,), x)
-@device_override Base.min(x::UInt32)  = ccall("extern air.min.u.i32", llvmcall, UInt32, (UInt32,), x)
-@device_override Base.min(x::Int16)   = ccall("extern air.min.s.i16", llvmcall, Int16, (Int16,), x)
-@device_override Base.min(x::UInt16)  = ccall("extern air.min.u.i16", llvmcall, UInt16, (UInt16,), x)
-@device_override Base.min(x::Int8)    = ccall("extern air.min.s.i8", llvmcall, Int8, (Int8,), x)
-@device_override Base.min(x::UInt8)   = ccall("extern air.min.u.i8", llvmcall, UInt8, (UInt8,), x)
+@device_override Base.min(x::Int64, y::Int64)   = ccall("extern air.min.s.i64", llvmcall, Int64, (Int64, Int64), x, y)
+@device_override Base.min(x::UInt64, y::UInt64) = ccall("extern air.min.u.i64", llvmcall, UInt64, (UInt64, UInt64), x, y)
+@device_override Base.min(x::Int32, y::Int32)   = ccall("extern air.min.s.i32", llvmcall, Int32, (Int32, Int32), x, y)
+@device_override Base.min(x::UInt32, y::UInt32) = ccall("extern air.min.u.i32", llvmcall, UInt32, (UInt32, UInt32), x, y)
+@device_override Base.min(x::Int16, y::Int16)   = ccall("extern air.min.s.i16", llvmcall, Int16, (Int16, Int16), x, y)
+@device_override Base.min(x::UInt16, y::UInt16) = ccall("extern air.min.u.i16", llvmcall, UInt16, (UInt16, UInt16), x, y)
+@device_override Base.min(x::Int8, y::Int8)     = ccall("extern air.min.s.i8", llvmcall, Int8, (Int8, Int8), x, y)
+@device_override Base.min(x::UInt8, y::UInt8)   = ccall("extern air.min.u.i8", llvmcall, UInt8, (UInt8, UInt8), x, y)
 
-@device_override Base.max(x::Int64)   = ccall("extern air.max.s.i64", llvmcall, Int64, (Int64,), x)
-@device_override Base.max(x::UInt64)  = ccall("extern air.max.u.i64", llvmcall, UInt64, (UInt64,), x)
-@device_override Base.max(x::Int32)   = ccall("extern air.max.s.i32", llvmcall, Int32, (Int32,), x)
-@device_override Base.max(x::UInt32)  = ccall("extern air.max.u.i32", llvmcall, UInt32, (UInt32,), x)
-@device_override Base.max(x::Int16)   = ccall("extern air.max.s.i16", llvmcall, Int16, (Int16,), x)
-@device_override Base.max(x::UInt16)  = ccall("extern air.max.u.i16", llvmcall, UInt16, (UInt16,), x)
-@device_override Base.max(x::Int8)    = ccall("extern air.max.s.i8", llvmcall, Int8, (Int8,), x)
-@device_override Base.max(x::UInt8)   = ccall("extern air.max.u.i8", llvmcall, UInt8, (UInt8,), x)
+# XXX: Breaks code when uncommented. https://github.com/JuliaGPU/Metal.jl/issues/547
+# @device_override Base.max(x::Int64, y::Int64)   = ccall("extern air.max.s.i64", llvmcall, Int64, (Int64, Int64), x, y)
+@device_override Base.max(x::UInt64, y::UInt64) = ccall("extern air.max.u.i64", llvmcall, UInt64, (UInt64, UInt64), x, y)
+@device_override Base.max(x::Int32, y::Int32)   = ccall("extern air.max.s.i32", llvmcall, Int32, (Int32, Int32), x, y)
+@device_override Base.max(x::UInt32, y::UInt32) = ccall("extern air.max.u.i32", llvmcall, UInt32, (UInt32, UInt32), x, y)
+@device_override Base.max(x::Int16, y::Int16)   = ccall("extern air.max.s.i16", llvmcall, Int16, (Int16, Int16), x, y)
+@device_override Base.max(x::UInt16, y::UInt16) = ccall("extern air.max.u.i16", llvmcall, UInt16, (UInt16, UInt16), x, y)
+@device_override Base.max(x::Int8, y::Int8)     = ccall("extern air.max.s.i8", llvmcall, Int8, (Int8, Int8), x, y)
+@device_override Base.max(x::UInt8, y::UInt8)   = ccall("extern air.max.u.i8", llvmcall, UInt8, (UInt8, UInt8), x, y)
 
-@device_function clz(x::Int64)   = ccall("extern air.clz.i64", llvmcall, Int64, (Int64,), x)
-@device_function clz(x::UInt64)  = ccall("extern air.clz.i64", llvmcall, UInt64, (UInt64,), x)
-@device_function clz(x::Int32)   = ccall("extern air.clz.i32", llvmcall, Int32, (Int32,), x)
-@device_function clz(x::UInt32)  = ccall("extern air.clz.i32", llvmcall, UInt32, (UInt32,), x)
-@device_function clz(x::Int16)   = ccall("extern air.clz.i16", llvmcall, Int16, (Int16,), x)
-@device_function clz(x::UInt16)  = ccall("extern air.clz.i16", llvmcall, UInt16, (UInt16,), x)
-@device_function clz(x::Int8)    = ccall("extern air.clz.i8", llvmcall, Int8, (Int8,), x)
-@device_function clz(x::UInt8)   = ccall("extern air.clz.i8", llvmcall, UInt8, (UInt8,), x)
+@device_override Base.min(x::Int64, y::Int64, z::Int64)    = ccall("extern air.min3.s.i64", llvmcall, Int64, (Int64, Int64, Int64), x, y, z)
+@device_override Base.min(x::UInt64, y::UInt64, z::UInt64) = ccall("extern air.min3.u.i64", llvmcall, UInt64, (UInt64, UInt64, UInt64), x, y, z)
+@device_override Base.min(x::Int32, y::Int32, z::Int32)    = ccall("extern air.min3.s.i32", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
+@device_override Base.min(x::UInt32, y::UInt32, z::UInt32) = ccall("extern air.min3.u.i32", llvmcall, UInt32, (UInt32, UInt32, UInt32), x, y, z)
+@device_override Base.min(x::Int16, y::Int16, z::Int16)    = ccall("extern air.min3.s.i16", llvmcall, Int16, (Int16, Int16, Int16), x, y, z)
+@device_override Base.min(x::UInt16, y::UInt16, z::UInt16) = ccall("extern air.min3.u.i16", llvmcall, UInt16, (UInt16, UInt16, UInt16), x, y, z)
+@device_override Base.min(x::Int8, y::Int8, z::Int8)       = ccall("extern air.min3.s.i8", llvmcall, Int8, (Int8, Int8, Int8), x, y, z)
+@device_override Base.min(x::UInt8, y::UInt8, z::UInt8)    = ccall("extern air.min3.u.i8", llvmcall, UInt8, (UInt8, UInt8, UInt8), x, y, z)
 
-@device_function ctz(x::Int64)   = ccall("extern air.ctz.i64", llvmcall, Int64, (Int64,), x)
-@device_function ctz(x::UInt64)  = ccall("extern air.ctz.i64", llvmcall, UInt64, (UInt64,), x)
-@device_function ctz(x::Int32)   = ccall("extern air.ctz.i32", llvmcall, Int32, (Int32,), x)
-@device_function ctz(x::UInt32)  = ccall("extern air.ctz.i32", llvmcall, UInt32, (UInt32,), x)
-@device_function ctz(x::Int16)   = ccall("extern air.ctz.i16", llvmcall, Int16, (Int16,), x)
-@device_function ctz(x::UInt16)  = ccall("extern air.ctz.i16", llvmcall, UInt16, (UInt16,), x)
-@device_function ctz(x::Int8)    = ccall("extern air.ctz.i8", llvmcall, Int8, (Int8,), x)
-@device_function ctz(x::UInt8)   = ccall("extern air.ctz.i8", llvmcall, UInt8, (UInt8,), x)
+@device_override Base.max(x::Int64, y::Int64, z::Int64)    = ccall("extern air.max3.s.i64", llvmcall, Int64, (Int64, Int64, Int64), x, y, z)
+@device_override Base.max(x::UInt64, y::UInt64, z::UInt64) = ccall("extern air.max3.u.i64", llvmcall, UInt64, (UInt64, UInt64, UInt64), x, y, z)
+@device_override Base.max(x::Int32, y::Int32, z::Int32)    = ccall("extern air.max3.s.i32", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
+@device_override Base.max(x::UInt32, y::UInt32, z::UInt32) = ccall("extern air.max3.u.i32", llvmcall, UInt32, (UInt32, UInt32, UInt32), x, y, z)
+@device_override Base.max(x::Int16, y::Int16, z::Int16)    = ccall("extern air.max3.s.i16", llvmcall, Int16, (Int16, Int16, Int16), x, y, z)
+@device_override Base.max(x::UInt16, y::UInt16, z::UInt16) = ccall("extern air.max3.u.i16", llvmcall, UInt16, (UInt16, UInt16, UInt16), x, y, z)
+@device_override Base.max(x::Int8, y::Int8, z::Int8)       = ccall("extern air.max3.s.i8", llvmcall, Int8, (Int8, Int8, Int8), x, y, z)
+@device_override Base.max(x::UInt8, y::UInt8, z::UInt8)    = ccall("extern air.max3.u.i8", llvmcall, UInt8, (UInt8, UInt8, UInt8), x, y, z)
 
-@device_function popcount(x::Int64)   = ccall("extern air.popcount.i64", llvmcall, Int64, (Int64,), x)
-@device_function popcount(x::UInt64)  = ccall("extern air.popcount.i64", llvmcall, UInt64, (UInt64,), x)
-@device_function popcount(x::Int32)   = ccall("extern air.popcount.i32", llvmcall, Int32, (Int32,), x)
-@device_function popcount(x::UInt32)  = ccall("extern air.popcount.i32", llvmcall, UInt32, (UInt32,), x)
-@device_function popcount(x::Int16)   = ccall("extern air.popcount.i16", llvmcall, Int16, (Int16,), x)
-@device_function popcount(x::UInt16)  = ccall("extern air.popcount.i16", llvmcall, UInt16, (UInt16,), x)
-@device_function popcount(x::Int8)    = ccall("extern air.popcount.i8", llvmcall, Int8, (Int8,), x)
-@device_function popcount(x::UInt8)   = ccall("extern air.popcount.i8", llvmcall, UInt8, (UInt8,), x)
+@device_override Base.leading_zeros(x::Int64)  = ccall("extern air.clz.i64", llvmcall, Int64, (Int64,), x)
+@device_override Base.leading_zeros(x::UInt64) = ccall("extern air.clz.i64", llvmcall, UInt64, (UInt64,), x)
+@device_override Base.leading_zeros(x::Int32)  = ccall("extern air.clz.i32", llvmcall, Int32, (Int32,), x)
+@device_override Base.leading_zeros(x::UInt32) = ccall("extern air.clz.i32", llvmcall, UInt32, (UInt32,), x)
+@device_override Base.leading_zeros(x::Int16)  = ccall("extern air.clz.i16", llvmcall, Int16, (Int16,), x)
+@device_override Base.leading_zeros(x::UInt16) = ccall("extern air.clz.i16", llvmcall, UInt16, (UInt16,), x)
+@device_override Base.leading_zeros(x::Int8)   = ccall("extern air.clz.i8", llvmcall, Int8, (Int8,), x)
+@device_override Base.leading_zeros(x::UInt8)  = ccall("extern air.clz.i8", llvmcall, UInt8, (UInt8,), x)
+const clz = leading_zeros
 
-@device_function reverse_bits(x::Int64)   = ccall("extern air.reverse_bits.i64", llvmcall, Int64, (Int64,), x)
-@device_function reverse_bits(x::UInt64)  = ccall("extern air.reverse_bits.i64", llvmcall, UInt64, (UInt64,), x)
-@device_function reverse_bits(x::Int32)   = ccall("extern air.reverse_bits.i32", llvmcall, Int32, (Int32,), x)
-@device_function reverse_bits(x::UInt32)  = ccall("extern air.reverse_bits.i32", llvmcall, UInt32, (UInt32,), x)
-@device_function reverse_bits(x::Int16)   = ccall("extern air.reverse_bits.i16", llvmcall, Int16, (Int16,), x)
-@device_function reverse_bits(x::UInt16)  = ccall("extern air.reverse_bits.i16", llvmcall, UInt16, (UInt16,), x)
-@device_function reverse_bits(x::Int8)    = ccall("extern air.reverse_bits.i8", llvmcall, Int8, (Int8,), x)
-@device_function reverse_bits(x::UInt8)   = ccall("extern air.reverse_bits.i8", llvmcall, UInt8, (UInt8,), x)
+@device_override Base.trailing_zeros(x::Int64)  = ccall("extern air.ctz.i64", llvmcall, Int64, (Int64,), x)
+@device_override Base.trailing_zeros(x::UInt64) = ccall("extern air.ctz.i64", llvmcall, UInt64, (UInt64,), x)
+@device_override Base.trailing_zeros(x::Int32)  = ccall("extern air.ctz.i32", llvmcall, Int32, (Int32,), x)
+@device_override Base.trailing_zeros(x::UInt32) = ccall("extern air.ctz.i32", llvmcall, UInt32, (UInt32,), x)
+@device_override Base.trailing_zeros(x::Int16)  = ccall("extern air.ctz.i16", llvmcall, Int16, (Int16,), x)
+@device_override Base.trailing_zeros(x::UInt16) = ccall("extern air.ctz.i16", llvmcall, UInt16, (UInt16,), x)
+@device_override Base.trailing_zeros(x::Int8)   = ccall("extern air.ctz.i8", llvmcall, Int8, (Int8,), x)
+@device_override Base.trailing_zeros(x::UInt8)  = ccall("extern air.ctz.i8", llvmcall, UInt8, (UInt8,), x)
+const ctz = trailing_zeros
 
+@device_override Base.count_ones(x::Int64)  = ccall("extern air.popcount.i64", llvmcall, Int64, (Int64,), x)
+@device_override Base.count_ones(x::UInt64) = ccall("extern air.popcount.i64", llvmcall, UInt64, (UInt64,), x)
+@device_override Base.count_ones(x::Int32)  = ccall("extern air.popcount.i32", llvmcall, Int32, (Int32,), x)
+@device_override Base.count_ones(x::UInt32) = ccall("extern air.popcount.i32", llvmcall, UInt32, (UInt32,), x)
+@device_override Base.count_ones(x::Int16)  = ccall("extern air.popcount.i16", llvmcall, Int16, (Int16,), x)
+@device_override Base.count_ones(x::UInt16) = ccall("extern air.popcount.i16", llvmcall, UInt16, (UInt16,), x)
+@device_override Base.count_ones(x::Int8)   = ccall("extern air.popcount.i8", llvmcall, Int8, (Int8,), x)
+@device_override Base.count_ones(x::UInt8)  = ccall("extern air.popcount.i8", llvmcall, UInt8, (UInt8,), x)
+const popcount = count_ones
 
-function _mulhi(a::Int64, b::Int64)
-    shift = sizeof(a) * 4
-    mask = typemax(UInt32)
-    a1, a2 = (a >> shift), a & mask
-    b1, b2 = (b >> shift), b & mask
-    a1b1, a1b2, a2b1 = a1*b1, a1*b2, a2*b1
-    t1 = a1b2 + _mulhi(a2 % UInt32, b2 % UInt32)
-    t2 = a2b1 + (t1 & mask)
-    a1b1 + (t1 >> shift) + (t2 >> shift)
-end
-@static if isdefined(Base.MultiplicativeInverses, :_mul_high)
-    _mulhi(a::T, b::T) where {T<:Union{Signed, Unsigned}} = Base.MultiplicativeInverses._mul_high(a, b)
-    @device_override Base.MultiplicativeInverses._mul_high(a::Int64, b::Int64) = _mulhi(a, b)
-else
-    _mulhi(a::T, b::T) where {T<:Union{Signed, Unsigned}} = ((widen(a)*b) >>> (sizeof(a)*8)) % T
-    @device_override function Base.div(a::Int64, b::Base.MultiplicativeInverses.SignedMultiplicativeInverse{Int64})
-        x = _mulhi(a, b.multiplier)
-        x += (a*b.addmul) % Int64
-        ifelse(abs(b.divisor) == 1, a*b.divisor, (signbit(x) + (x >> b.shift)) % Int64)
-    end
-end
+@device_override Base.bitreverse(x::Int64)  = ccall("extern air.reverse_bits.i64", llvmcall, Int64, (Int64,), x)
+@device_override Base.bitreverse(x::UInt64) = ccall("extern air.reverse_bits.i64", llvmcall, UInt64, (UInt64,), x)
+@device_override Base.bitreverse(x::Int32)  = ccall("extern air.reverse_bits.i32", llvmcall, Int32, (Int32,), x)
+@device_override Base.bitreverse(x::UInt32) = ccall("extern air.reverse_bits.i32", llvmcall, UInt32, (UInt32,), x)
+@device_override Base.bitreverse(x::Int16)  = ccall("extern air.reverse_bits.i16", llvmcall, Int16, (Int16,), x)
+@device_override Base.bitreverse(x::UInt16) = ccall("extern air.reverse_bits.i16", llvmcall, UInt16, (UInt16,), x)
+@device_override Base.bitreverse(x::Int8)   = ccall("extern air.reverse_bits.i8", llvmcall, Int8, (Int8,), x)
+@device_override Base.bitreverse(x::UInt8)  = ccall("extern air.reverse_bits.i8", llvmcall, UInt8, (UInt8,), x)
+const reverse_bits = bitreverse
+
+@device_override Base.MultiplicativeInverses._mul_high(x::Int64, y::Int64)   = ccall("extern air.mul_hi.s.i64", llvmcall, Int64, (Int64, Int64), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::UInt64, y::UInt64) = ccall("extern air.mul_hi.u.i64", llvmcall, UInt64, (UInt64, UInt64), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::Int32, y::Int32)   = ccall("extern air.mul_hi.s.i32", llvmcall, Int32, (Int32, Int32), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::UInt32, y::UInt32) = ccall("extern air.mul_hi.u.i32", llvmcall, UInt32, (UInt32, UInt32), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::Int16, y::Int16)   = ccall("extern air.mul_hi.s.i16", llvmcall, Int16, (Int16, Int16), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::UInt16, y::UInt16) = ccall("extern air.mul_hi.u.i16", llvmcall, UInt16, (UInt16, UInt16), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::Int8, y::Int8)     = ccall("extern air.mul_hi.s.i8", llvmcall, Int8, (Int8, Int8), x, y)
+@device_override Base.MultiplicativeInverses._mul_high(x::UInt8, y::UInt8)   = ccall("extern air.mul_hi.u.i8", llvmcall, UInt8, (UInt8, UInt8), x, y)
+const mulhi = Base.MultiplicativeInverses._mul_high
 
 # From: https://forums.developer.nvidia.com/t/a-faster-and-more-accurate-implementation-of-expm1f/48085/2
 # Original license copied below:
@@ -418,7 +488,7 @@ end
     j = fma(1.442695f0, a, 12582912.0f0)
     j = j - 12582912.0f0
     i = unsafe_trunc(Int32, j)
-    f = fma(j, -6.93145752f-1, a) # log_2_hi 
+    f = fma(j, -6.93145752f-1, a) # log_2_hi
     f = fma(j, -1.42860677f-6, f) # log_2_lo
 
     # approximate r = exp(f)-1 on interval [-log(2)/2, +log(2)/2]

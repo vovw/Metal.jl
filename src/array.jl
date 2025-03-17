@@ -395,7 +395,6 @@ Base.copyto!(dest::MtlArray{T}, src::MtlArray{T}) where {T} =
 function Base.unsafe_copyto!(dev::MTLDevice, dest::MtlArray{T}, doffs, src::Array{T}, soffs, n) where T
     # these copies are implemented using pure memcpy's, not API calls, so aren't ordered.
     synchronize()
-
     GC.@preserve src dest unsafe_copyto!(dev, pointer(dest, doffs), pointer(src, soffs), n)
     if Base.isbitsunion(T)
         # copy selector bytes
@@ -414,7 +413,6 @@ end
 function Base.unsafe_copyto!(dev::MTLDevice, dest::Array{T}, doffs, src::MtlArray{T}, soffs, n) where T
     # these copies are implemented using pure memcpy's, not API calls, so aren't ordered.
     synchronize()
-
     GC.@preserve src dest unsafe_copyto!(dev, pointer(dest, doffs), pointer(src, soffs), n)
     if Base.isbitsunion(T)
         # copy selector bytes
@@ -433,7 +431,6 @@ end
 function Base.unsafe_copyto!(dev::MTLDevice, dest::MtlArray{T}, doffs, src::MtlArray{T}, soffs, n) where T
     # these copies are implemented using pure memcpy's, not API calls, so aren't ordered.
     synchronize()
-
     GC.@preserve src dest unsafe_copyto!(dev, pointer(dest, doffs), pointer(src, soffs), n)
     if Base.isbitsunion(T)
         # copy selector bytes
@@ -573,7 +570,11 @@ Base.unsafe_convert(::Type{MTL.MTLBuffer}, A::PermutedDimsArray) =
 
 ## unsafe_wrap
 
-function Base.unsafe_wrap(::Type{<:Array}, arr::MtlArray{T,N}, dims=size(arr); own=false) where {T,N}
+function Base.unsafe_wrap(
+        ::Union{Type{Array}, Type{Array{T}}, Type{Array{T, N}}},
+        arr::MtlArray{T, N}, dims = size(arr);
+        own::Bool = false
+    ) where {T, N}
     return unsafe_wrap(Array{T,N}, pointer(arr), dims; own)
 end
 
@@ -597,7 +598,7 @@ end
 ## resizing
 
 """
-  resize!(a::MtlVector, n::Integer)
+    resize!(a::MtlVector, n::Integer)
 
 Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
 the first `n` elements will be retained. If `n` is larger, the new elements are not

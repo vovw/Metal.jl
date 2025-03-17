@@ -18,9 +18,9 @@ certain extent arguments will be converted and managed automatically using `mtlc
 Finally, a call to `mtlcall` is performed, creating a command buffer in the current global
 command queue then committing it.
 
-There is one supported keyword argument that influences the behavior of `@metal`:
+There are a few keyword arguments that influence the behavior of `@metal`:
 
-- `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
+- `launch`: whether to launch this kernel, defaults to `true`. If `false`, the returned
   kernel object should be launched by calling it and passing arguments again.
 - `name`: the name of the kernel in the generated code. Defaults to an automatically-
   generated name.
@@ -126,7 +126,7 @@ end
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 # TODO: port improvements from CUDA.jl
 struct MtlRefValue{T} <: Ref{T}
-  x::T
+    x::T
 end
 Base.getindex(r::MtlRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = MtlRefValue(adapt(to, r[]))
@@ -134,8 +134,8 @@ Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = MtlRefValue(adapt(to, r[]
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
 struct MtlRefType{T} <: Ref{DataType} end
-Base.getindex(r::MtlRefType{T}) where T = T
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) =
+Base.getindex(::MtlRefType{T}) where {T} = T
+Adapt.adapt_structure(::Adaptor, r::Base.RefValue{<:Union{DataType, Type}}) =
     MtlRefType{r[]}()
 
 # case where type is the function being broadcasted
@@ -144,7 +144,7 @@ Adapt.adapt_structure(to::Adaptor,
     Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
 
 """
-  mtlconvert(x, [cce])
+    mtlconvert(x, [cce])
 
 This function is called for every argument to be passed to a kernel, allowing it to be
 converted to a GPU-friendly format. By default, the function does nothing and returns the

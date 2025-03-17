@@ -4,16 +4,9 @@
 #   - intermediate commits during encoding of MPS work using `commitAndContinue`
 #
 
-# XXX: Not actually inheritance but MPSCommandBuffer conforms to MTLCommandBuffer protocol
-@objcwrapper MPSCommandBuffer <: MTLCommandBuffer
+# @objcwrapper MPSCommandBuffer <: MTLCommandBuffer
 
-@objcproperties MPSCommandBuffer begin
-    # Identifying the Command Buffer
-    @autoproperty commandBuffer::id{MTLCommandBuffer}
-    # @autoproperty heapProvider::id{MPSHeapProvider}
-    # @autoproperty predicate::id{MPSPredicate}
-    @autoproperty rootCommandBuffer::id{MTLCommandBuffer}
-end
+export MPSCommandBuffer
 
 function MPSCommandBuffer(commandBuffer::MTLCommandBuffer)
     handle = @objc [MPSCommandBuffer commandBufferWithCommandBuffer:commandBuffer::id{MTLCommandBuffer}]::id{MPSCommandBuffer}
@@ -40,6 +33,8 @@ function MTL.commit!(f::Base.Callable, cmdbuf::MPSCommandBuffer)
     commit!(cmdbuf)
     return ret
 end
+
+export commitAndContinue!
 
 commitAndContinue!(cmdbuf::MPSCommandBuffer) =
     @objc [cmdbuf::id{MPSCommandBuffer} commitAndContinue]::Nothing

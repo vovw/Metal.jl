@@ -12,17 +12,24 @@ if !Sys.isapple()
              Skipping tests."""
     Sys.exit()
 else # if Sys.isapple()
-    archchecker = occursin(read(`xcrun metal-arch --name`, String))
-    if archchecker("Paravirtual") # Virtualized graphics (probably Github Actions runners)
-        @warn """Metal.jl succesfully loaded on macOS system with unsupported Paravirtual graphics.
-                 This system is unsupported but should still load.
-                 Skipping tests."""
-        Sys.exit()
-    elseif !archchecker("applegpu") # Every other unsupported system (Intel or AMD graphics)
-        @warn """Metal.jl succesfully loaded on macOS system with unsupported graphics.
-                 This system is unsupported but should still load.
-                 Skipping tests."""
-        Sys.exit()
+    cmd = pipeline(Cmd(`xcrun -f metal-arch`, ignorestatus = true), stdout = devnull, stderr = devnull)
+    is_xcode_present = run(cmd).exitcode == 0
+
+    if is_xcode_present
+        archchecker = occursin(read(`xcrun metal-arch --name`, String))
+        if archchecker("Paravirtual") # Virtualized graphics (probably Github Actions runners)
+            @warn """Metal.jl succesfully loaded on macOS system with unsupported Paravirtual graphics.
+                    This system is unsupported but should still load.
+                    Skipping tests."""
+            Sys.exit()
+        elseif !archchecker("applegpu") # Every other unsupported system (Intel or AMD graphics)
+            @warn """Metal.jl succesfully loaded on macOS system with unsupported graphics.
+                    This system is unsupported but should still load.
+                    Skipping tests."""
+            Sys.exit()
+        end
+    else
+        @info "GPU architecture could not be detected, assuming supported device."
     end
 end
 
@@ -37,7 +44,7 @@ function extract_flag!(args, flag, default=nothing)
             if f != flag
                 val = split(f, '=')[2]
                 if default !== nothing && !(typeof(default) <: AbstractString)
-                  val = parse(typeof(default), val)
+                    val = parse(typeof(default), val)
                 end
             else
                 val = default
@@ -75,29 +82,29 @@ const tests = []
 const test_runners = Dict()
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
-  # find Julia files
-  filter!(files) do file
-    endswith(file, ".jl") && file !== "setup.jl" && file !== "runtests.jl"
-  end
-  isempty(files) && continue
-
-  # strip extension
-  files = map(files) do file
-    file[1:end-3]
-  end
-
-  # prepend subdir
-  subdir = relpath(rootpath, @__DIR__)
-  if subdir != "."
-    files = map(files) do file
-      joinpath(subdir, file)
+    # find Julia files
+    filter!(files) do file
+        endswith(file, ".jl") && file !== "setup.jl" && file !== "runtests.jl"
     end
-  end
+    isempty(files) && continue
 
-  append!(tests, files)
-  for file in files
-    test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
-  end
+    # strip extension
+    files = map(files) do file
+        file[1:end-3]
+    end
+
+    # prepend subdir
+    subdir = relpath(rootpath, @__DIR__)
+    if subdir != "."
+        files = map(files) do file
+            joinpath(subdir, file)
+        end
+    end
+
+    append!(tests, files)
+    for file in files
+        test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
+    end
 end
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
@@ -127,9 +134,9 @@ if !isempty(optlike_args)
 end
 ## the remaining args filter tests
 if !isempty(ARGS)
-  filter!(tests) do test
-    any(arg->startswith(test, arg), ARGS)
-  end
+    filter!(tests) do test
+        any(arg->startswith(test, arg), ARGS)
+    end
 end
 
 # add workers

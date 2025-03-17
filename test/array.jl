@@ -311,87 +311,163 @@ end
 
 # https://github.com/JuliaGPU/CUDA.jl/issues/2191
 @testset "preserving storage mode" begin
-  a = mtl([1]; storage=Metal.SharedStorage)
-  @test Metal.storagemode(a) == Metal.SharedStorage
+    a = mtl([1]; storage=Metal.SharedStorage)
+    @test Metal.storagemode(a) == Metal.SharedStorage
 
-  # storage mode should be preserved
-  b = a .+ 1
-  @test Metal.storagemode(b) == Metal.SharedStorage
+    # storage mode should be preserved
+    b = a .+ 1
+    @test Metal.storagemode(b) == Metal.SharedStorage
 
-  # when there's a conflict, we should defer to shared memory
-  c = mtl([1]; storage=Metal.PrivateStorage)
-  d = mtl([1]; storage=Metal.SharedStorage)
-  e = c .+ d
-  @test Metal.storagemode(e) == Metal.SharedStorage
+    # when there's a conflict, we should defer to shared memory
+    c = mtl([1]; storage=Metal.PrivateStorage)
+    d = mtl([1]; storage=Metal.SharedStorage)
+    e = c .+ d
+    @test Metal.storagemode(e) == Metal.SharedStorage
 end
 
 @testset "resizing" begin
-  a = MtlArray([1,2,3])
+    a = MtlArray([1,2,3])
 
-  resize!(a, 3)
-  @test length(a) == 3
-  @test Array(a) == [1,2,3]
+    resize!(a, 3)
+    @test length(a) == 3
+    @test Array(a) == [1,2,3]
 
-  resize!(a, 5)
-  @test length(a) == 5
-  @test Array(a)[1:3] == [1,2,3]
+    resize!(a, 5)
+    @test length(a) == 5
+    @test Array(a)[1:3] == [1,2,3]
 
-  resize!(a, 2)
-  @test length(a) == 2
-  @test Array(a)[1:2] == [1,2]
+    resize!(a, 2)
+    @test length(a) == 2
+    @test Array(a)[1:2] == [1,2]
 
-  b = MtlArray{Int}(undef, 0)
-  @test length(b) == 0
-  resize!(b, 1)
-  @test length(b) == 1
+    b = MtlArray{Int}(undef, 0)
+    @test length(b) == 0
+    resize!(b, 1)
+    @test length(b) == 1
 end
 
-function _alignedvec(::Type{T}, n::Integer, alignment::Integer=16384) where {T}
+function _alignedvec(::Type{T}, n::Integer, alignment::Integer = 16384) where {T}
     ispow2(alignment) || throw(ArgumentError("$alignment is not a power of 2"))
     alignment ≥ sizeof(Int) || throw(ArgumentError("$alignment is not a multiple of $(sizeof(Int))"))
     isbitstype(T) || throw(ArgumentError("$T is not a bitstype"))
     p = Ref{Ptr{T}}()
-    err = ccall(:posix_memalign, Cint, (Ref{Ptr{T}}, Csize_t, Csize_t), p, alignment, n*sizeof(T))
+    err = ccall(:posix_memalign, Cint, (Ref{Ptr{T}}, Csize_t, Csize_t), p, alignment, n * sizeof(T))
     iszero(err) || throw(OutOfMemoryError())
-    return unsafe_wrap(Array, p[], n, own=true)
+    return unsafe_wrap(Array, p[], n, own = true)
 end
 
 @testset "unsafe_wrap" begin
-    # Create page-aligned vector for testing
-    arr1 = _alignedvec(Float32, 16384*2);
-    fill!(arr1, zero(eltype(arr1)))
-    marr1 = unsafe_wrap(MtlVector{Float32}, arr1);
+    @testset "cpu array incremented" begin
+        @testset "wrap cpu" begin
+            @testset "check cpu" begin # cpu array checked first
+                arr = _alignedvec(Float32, 16384 * 2)
+                fill!(arr, one(eltype(arr)))
+                marr = Metal.@sync unsafe_wrap(MtlVector{Float32}, arr)
 
-    @test all(arr1 .== 0)
-    @test all(marr1 .== 0)
+                @test all(arr .== 1)
+                @test all(marr .== 1)
 
-    # XXX: Test fails when ordered as shown
-    # @test all(arr1 .== 1)
-    # @test all(marr1 .== 1)
-    marr1 .+= 1;
-    @test all(marr1 .== 1)
-    @test all(arr1 .== 1)
+                arr .+= 1
+                @test all(arr .== 2)
+                @test all(marr .== 2)
+            end
 
-    arr1 .+= 1;
-    @test all(marr1 .== 2)
-    @test all(arr1 .== 2)
+            @testset "check gpu" begin # gpu array checked first
+                arr = _alignedvec(Float32, 16384 * 2)
+                fill!(arr, one(eltype(arr)))
+                marr = Metal.@sync unsafe_wrap(MtlVector{Float32}, arr)
 
-    marr2 = Metal.zeros(Float32, 18000; storage=Metal.SharedStorage);
-    arr2 = unsafe_wrap(Vector{Float32}, marr2);
+                @test all(marr .== 1)
+                @test all(arr .== 1)
 
-    @test all(arr2 .== 0)
-    @test all(marr2 .== 0)
+                arr .+= 1
+                @test all(marr .== 2)
+                @test all(arr .== 2)
+            end
+        end
 
-    # XXX: Test fails when ordered as shown
-    # @test all(arr2 .== 1)
-    # @test all(marr2 .== 1)
-    marr2 .+= 1;
-    @test all(marr2 .== 1)
-    @test all(arr2 .== 1)
+        @testset "wrap gpu" begin
+            @testset "check cpu" begin # cpu array checked first
+                marr = Metal.@sync Metal.ones(Float32, 18000; storage = Metal.SharedStorage)
+                arr = unsafe_wrap(Vector{Float32}, marr)
 
-    arr2 .+= 1;
-    @test all(arr2 .== 2)
-    @test all(marr2 .== 2)
+                @test all(arr .== 1)
+                @test all(marr .== 1)
+
+                arr .+= 1
+                @test all(arr .== 2)
+                @test all(marr .== 2)
+            end
+
+            @testset "check gpu" begin # gpu array checked first
+                marr = Metal.@sync Metal.ones(Float32, 18000; storage = Metal.SharedStorage)
+                arr = unsafe_wrap(Vector{Float32}, marr)
+
+                @test all(marr .== 1)
+                @test all(arr .== 1)
+
+                arr .+= 1
+                @test all(marr .== 2)
+                @test all(arr .== 2)
+            end
+        end
+    end
+
+    @testset "gpu array incremented" begin
+        @testset "wrap cpu" begin
+            @testset "check cpu" begin # cpu array checked first
+                arr = _alignedvec(Float32, 16384 * 2)
+                fill!(arr, one(eltype(arr)))
+                marr = Metal.@sync unsafe_wrap(MtlVector{Float32}, arr)
+
+                @test all(arr .== 1)
+                @test all(marr .== 1)
+
+                Metal.@sync marr .+= 1
+                @test all(arr .== 2)
+                @test all(marr .== 2)
+            end
+
+            @testset "check gpu" begin # gpu array checked first
+                arr = _alignedvec(Float32, 16384 * 2)
+                fill!(arr, one(eltype(arr)))
+                marr = Metal.@sync unsafe_wrap(MtlVector{Float32}, arr)
+
+                @test all(marr .== 1)
+                @test all(arr .== 1)
+
+                marr .+= 1
+                @test all(marr .== 2)
+                @test all(arr .== 2)
+            end
+        end
+
+        @testset "wrap gpu" begin
+            @testset "check cpu" begin # cpu array checked first
+                marr = Metal.@sync Metal.ones(Float32, 18000; storage = Metal.SharedStorage)
+                arr = unsafe_wrap(Vector{Float32}, marr)
+
+                @test all(arr .== 1)
+                @test all(marr .== 1)
+
+                Metal.@sync marr .+= 1
+                @test all(arr .== 2)
+                @test all(marr .== 2)
+            end
+
+            @testset "check gpu" begin # gpu array checked first
+                marr = Metal.@sync Metal.ones(Float32, 18000; storage = Metal.SharedStorage)
+                arr = unsafe_wrap(Vector{Float32}, marr)
+
+                @test all(marr .== 1)
+                @test all(arr .== 1)
+
+                marr .+= 1
+                @test all(marr .== 2)
+                @test all(arr .== 2)
+            end
+        end
+    end
 
     @testset "Issue #451" begin
         a = mtl(reshape(Float32.(1:60), 5,4,3);storage=Metal.SharedStorage)
@@ -401,6 +477,10 @@ end
 
         @test b == c
     end
+
+    # test that you cannot create an array with a different eltype
+    marr3 = mtl(zeros(Float32, 10); storage = Metal.SharedStorage)
+    @test_throws MethodError unsafe_wrap(Array{Float16}, marr3)
 end
 
 @testset "ReshapedArray" begin
@@ -448,10 +528,10 @@ end
 
     # ND
     let x = rand(Bool, 1000, 1000)
-      @test findall(x) == Array(findall(MtlArray(x)))
+        @test findall(x) == Array(findall(MtlArray(x)))
     end
     let x = rand(Float32, 1000, 1000)
-      @test findall(y->y>Float32(0.5), x) == Array(findall(y->y>Float32(0.5), MtlArray(x)))
+        @test findall(y->y>Float32(0.5), x) == Array(findall(y->y>Float32(0.5), MtlArray(x)))
     end
 end
 

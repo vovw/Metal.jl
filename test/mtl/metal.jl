@@ -20,8 +20,8 @@ compact_str = sprint(io->show(io, dev))
 full_str = sprint(io->show(io, MIME"text/plain"(), dev))
 
 @test dev.name isa NSString
-@test dev.isLowPower isa Bool
-@test dev.isRemovable isa Bool
+@test dev.lowPower isa Bool
+@test dev.removable isa Bool
 @test dev.hasUnifiedMemory isa Bool
 @test dev.registryID isa Integer
 @test dev.maxTransferRate isa Integer
@@ -146,9 +146,9 @@ let ev = MTLEvent(dev)
 end
 
 let ev = MTLSharedEvent(dev)
-    # XXX: this returns nothing, which seems like a Metal bug,
-    #      especially because it does return a device under validation.
-    #@test ev.device == dev
+    # This returns nothing, which aligns with the description from the Metal SDK headers.
+    #     Interestingly, under validation, a device is returned.
+    @test ev.device === nothing broken=shader_validation
     @test ev.label === nothing
     ev.label = "MyEvent"
     @test ev.label == "MyEvent"
@@ -248,7 +248,7 @@ buf.label = "MyBuffer"
 @test buf.label == "MyBuffer"
 @test buf.gpuAddress isa Ptr{Cvoid}
 
-@test buf.contents isa Ptr{Cvoid}
+@test contents(buf) isa Ptr{Cvoid}
 @test convert(Ptr{UInt8}, buf) isa Ptr{UInt8}
 
 free(buf)
